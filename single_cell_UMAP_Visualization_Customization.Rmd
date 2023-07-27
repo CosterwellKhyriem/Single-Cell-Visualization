@@ -466,7 +466,7 @@ customUmap <- function(df,column='Cluster',pt.size=2,x.angle=90,x.hjust=0.5,x.vj
    
     ### Working with legends 
     p <- p + guides(color = guide_legend(ncol = lg.ncol, override.aes = list(size=lg.sym.size)))
-    p <- p + theme(legend.key.size = unit(1, 'cm'), #change legend key size
+    p <- p + theme(legend.key.size = unit(5, 'cm'), #change legend key size
         legend.key.height = unit(1, 'cm'), #change legend key height
         legend.key.width = unit(1, 'cm'), #change legend key width
         legend.title = element_blank(), #change legend title font size
@@ -490,8 +490,8 @@ customUmap(umap_emb)
 # Making UMAP with random color set 2
 customUmap(umap_emb)
 ```
-We can fix the cluster color by either choosing our own color for each cluster
-or, by saving the randomly generated color into a vector and push vector into the function.
+We can fix the cluster color by either choosing our own color for each cluster.<br>
+or, by saving the randomly generated color into a vector.<br>
 
 ```{r qplot_modified_umap_3, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
 # Making UMAP with fix color method 1.
@@ -517,14 +517,12 @@ Another thing that we can notice is that cluster legends are pushing out of the 
 This can be solved by placing two rows for the legends using the lg.ncol option.
 
 ```{r qplot_modified_umap_5, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
-# Making UMAP with fix color method 2.
 customUmap(umap_emb,custom_col = colors,lg.ncol = 2)
 ```
 We can also change the location of the legend using the lg.pos option.
 The legend is placed on the right by default. but it can also be placed on left, top and bottom 
 
 ```{r qplot_modified_umap_6, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
-# Making UMAP with fix color method 2.
 customUmap(umap_emb,custom_col = colors,lg.ncol = 16,lg.pos = 'bottom')
 ```
 
@@ -536,8 +534,8 @@ customUmap(umap_emb,column = "Tissue",lab.col = 'black',clust.label.size = 8, lg
 
 ```
 
-Another beautification that we can add is to place borders around the points to make the plot look more 3D
-Borders can be added by using the border=T option. The size of the border can be controlled by using the pt.broder.size option
+Another beautification that we can include is to add borders around the points to make them look 3D.<br>
+Borders can be added by using the border=T option and the size of the border can be controlled by using the pt.broder.size option. <br>
 
 ```{r qplot_modified_umap_8, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
 customUmap(umap_emb, alpha=0.8,column = "Tissue",lab.col = 'black',clust.label.size = 8, lg.ncol = 1, custom_col = c("#1ECBE1","#E11ECB","#CBE11E"),label.clust = F, border = T,pt.border.size = 0.1)
@@ -561,10 +559,10 @@ customUmap(umap_emb,custom_col = colors,border = T,pt.border.size = 0.1)
 ## Plotting Gene expression using kernal density 
 
 FeaturePlot function from seurat is commonly used to plot the gene expression values of each cells and project it into a UMAP plot.
-However, in point plots like the UMAP, points tends to get overlay on top of another.
+However, in point plots like the UMAP, points tends to get overlay over each other.
 This may undermind or over-estimate the real expression pattern in a cluster.
 
-Here, we will explore the a package called Nebulosa which uses kernal density to show the distribution of expression in a UMAP plot.
+Here, we will explore a package called Nebulosa which uses kernal density to show the distribution of expression valies in a UMAP plot.
 Details regarding the paper can be found below.
 
 **Jose Alquicira-Hernandez , Joseph E Powell, Nebulosa recovers single-cell gene expression signals by kernel density estimation, Bioinformatics, Volume 37, Issue 16, August 2021, Pages 2485–2487, https://doi.org/10.1093/bioinformatics/btab003**
