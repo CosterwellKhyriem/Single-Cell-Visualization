@@ -1,0 +1,591 @@
+---
+title: "Customizing UMAP visualization of 10X Single Cell Sequencing Data Analysis"
+output: html_document
+date: "2023-07-05"
+---
+
+```{r setup, include=T}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(Seurat))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+suppressMessages(library(viridis))
+suppressMessages(library(stringr))
+suppressMessages(library(randomcoloR))
+suppressMessages(library(reshape2))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyverse))
+suppressMessages(library(rlang))
+suppressMessages(library(Nebulosa))
+```
+
+# Visualization of single cell datasets using ggplot
+Here we are going explore customizable R codes that can be used to making decent graphical visualization for single cell datasets.
+Seurat package will be used to load and analyse a 10X single cell dataset of sequenced from colorectal cancer patients.
+Cell-type identity will be followed as described by the authors of the dataset.
+
+# Introduction to the dataset
+The dataset used for this illustration is downloaded form:
+
+* https://dna-discovery.stanford.edu/research/datasets/
+
+Unfiltered dataset were downloaded and used here.
+
+## Liver metastasis of colorectal cancer dataset
+
+The data was published by Sathe et. al in the journal of *Clinical Cancer Research*.
+
+Titled: **Colorectal Cancer Metastases in the Liver Establish Immunosuppressive Spatial Networking between Tumor-Associated SPP1+ Macrophages and Fibroblasts**
+
+DOI: https://doi.org/10.1158/1078-0432.CCR-22-2041
+
+According to the description of the provided by the authors, the Cell labels file contains cell lineage annotation for each single cell following subset analysis as described in the manuscript.
+
+Column identifiers in the file: <br>
+- 'cell_barcode': original cell barcode appended with a prefix corresponding to orig.ident described below.<br>
+- 'orig.ident': Sample name in the "patientID_condition" format described above.<br>
+- 'condition': normal/tumor/pbmc<br>
+- 'final_celltype': cell lineage assigned following subset analysis with re-clustering<br>
+
+The data consist of 7 metastasized colorectal cancer (mCRC) from the liver, 4 normal liver sample and 2 Peripheral Blood Mononuclear Cells (PBMC) samples.
+
+## Reading data
+* Read single cell 10X datasets, the variables names will be set as given by the authors of the paper.
+* Convert the data into seurat object
+* Create a column in the seurat object called percent.mt that will store the percentage of mitochondrial DNA for each cell
+* Calculate percentage of mitochondrial DNA using the PercentageFeatureSet function from seurat package
+
+```{r include=TRUE}
+  
+n5784_PBMC = Read10X('sathe_et_al/mCRC_scRNA_raw/5784_PBMC/')
+n6335_PBMC = Read10X('sathe_et_al/mCRC_scRNA_raw/6335_PBMC/')
+
+
+n6198_normal_liver = Read10X('sathe_et_al/mCRC_scRNA_raw/6198_normal_liver/')
+n5915_normal_liver = Read10X('sathe_et_al/mCRC_scRNA_raw/5915_normal_liver/')
+n6335_normal_liver = Read10X('sathe_et_al/mCRC_scRNA_raw/6335_normal_liver/')
+n6648_normal_liver = Read10X('sathe_et_al/mCRC_scRNA_raw/6648_normal_liver/')
+
+n5784_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/5784_mCRC/')
+n5915_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/5915_mCRC/')
+n6198_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/6198_mCRC/')
+n6335_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/6335_mCRC/')
+n6593_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/6593_mCRC/')
+n6648_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/6648_mCRC/')
+n8640_mCRC = Read10X('sathe_et_al/mCRC_scRNA_raw/8640_mCRC/')
+
+# creating seurat objects
+n5784_PBMC = CreateSeuratObject(n5784_PBMC,min.cells = 3, min.genes = 200, min.features=10,project = "5784_PBMC")
+n6335_PBMC = CreateSeuratObject(n6335_PBMC,min.cells = 3, min.genes = 200, min.features=10,project = "6335_PBMC")
+
+n5915_normal_liver = CreateSeuratObject(n5915_normal_liver,min.cells = 3, min.genes = 200, min.features=10,project = "5915_normal_liver")
+n6198_normal_liver = CreateSeuratObject(n6198_normal_liver,min.cells = 3, min.genes = 200, min.features=10,project = "6198_normal_liver")
+n6335_normal_liver = CreateSeuratObject(n6335_normal_liver,min.cells = 3, min.genes = 200, min.features=10,project = "6335_normal_liver")
+n6648_normal_liver = CreateSeuratObject(n6648_normal_liver,min.cells = 3, min.genes = 200, min.features=10,project = "6648_normal_liver")
+
+n5784_mCRC = CreateSeuratObject(n5784_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "5784_mCRC")
+n5915_mCRC = CreateSeuratObject(n5915_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "5915_mCRC")
+n6198_mCRC = CreateSeuratObject(n6198_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "6198_mCRC")
+n6335_mCRC = CreateSeuratObject(n6335_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "6335_mCRC")
+n6593_mCRC = CreateSeuratObject(n6593_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "6593_mCRC")
+n6648_mCRC = CreateSeuratObject(n6648_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "6648_mCRC")
+n8640_mCRC = CreateSeuratObject(n8640_mCRC,min.cells = 3, min.genes = 200, min.features=10,project = "8640_mCRC")
+
+
+```
+
+
+
+# Merging the all seurat object
+* Before merging, we shall get all total number of cells and features (genes) counts for each sample.
+* We shall use the sample with the highest number of features as the first input in the merge function.
+
+```{r warning=F, include=T,results='asis'}
+seu_object = list(n5784_PBMC,n5784_mCRC,n5915_mCRC,n5915_normal_liver,n6198_mCRC,n6198_normal_liver,n6335_PBMC,n6335_mCRC,n6335_normal_liver,n6593_mCRC,n6648_mCRC,n6648_normal_liver,n8640_mCRC)
+
+cell_counts <- c()
+sample_name <- c()
+features <- c()
+for (i in 1:length(seu_object))
+{
+  cell_counts <- c(cell_counts,dim(seu_object[[i]]@assays$RNA@counts)[2])
+  features <- c(features,dim(seu_object[[i]]@assays$RNA@counts)[1])
+  sample_name <- c(sample_name,seu_object[[i]]@project.name)
+}
+
+df <- data.frame("Sample Name"=sample_name,"Cell Count"=cell_counts,"Total Features"=features)
+rmarkdown::paged_table(df,options = list(rows.print = 7, rownames.print=T))
+
+index = which.max(features)
+
+sample_name_order <- c(df$Sample.Name[index])
+for (i in 1:length(df$Sample.Name))
+{
+  if (i != index)
+  {
+    sample_name_order <- c(sample_name_order,df$Sample.Name[i])
+  }
+}
+
+
+
+crc_merged <- merge(seu_object[[5]], y= c(seu_object[[1]],seu_object[[2]],seu_object[[3]],seu_object[[4]],seu_object[[6]],seu_object[[7]],seu_object[[8]],seu_object[[9]],seu_object[[10]],seu_object[[11]],seu_object[[12]],seu_object[[13]]),add.cell.ids=sample_name_order,project = "CRCLM")
+
+rm(n5784_PBMC,n5784_mCRC,n5915_mCRC,n5915_normal_liver,n6198_mCRC,n6198_normal_liver,n6335_PBMC,n6335_mCRC,n6335_normal_liver,n6593_mCRC,n6648_mCRC,n6648_normal_liver,n8640_mCRC)
+
+saveRDS(crc_merged,"sathe_et_al/merged_crc.rds")
+
+metadata = read.csv('sathe_et_al/mCRC_scRNA_raw/mCRC_cell_labels.csv')
+
+```
+
+# Using ggplot, we will visualize QC stats for each samples
+* Percentage mitochondial DNA for each sample
+* Gene count 
+* Read count
+
+```{r warning=F, include=T,results='asis'}
+# calculating the percentage mt RNA using seurat inbuild function
+crc_merged$percent.mt <- PercentageFeatureSet(crc_merged, pattern = "^MT-")
+```
+
+- 
+
+```{r qplot_mt_violin_with_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+# setting the order of Y axis 
+label_order = c("5915_normal_liver","6198_normal_liver","6335_normal_liver","6648_normal_liver",
+                "5784_mCRC","5915_mCRC","6198_mCRC","6335_mCRC","6593_mCRC","6648_mCRC","8640_mCRC",
+                "5784_PBMC","6335_PBMC")
+Idents(crc_merged) <- 'orig.ident'
+p <- VlnPlot(crc_merged,features = c('percent.mt'))
+p <- p + scale_y_continuous(breaks=seq(0,100,by=5))
+p$data$ident <- factor(p$data$ident, levels = label_order) # pushing the sort order into the plot
+p <- p + theme(legend.position="none") 
+p <- p + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+p
+```
+
+```{r qplot_gene_violin_with_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+Idents(crc_merged) <- 'orig.ident'
+p <- VlnPlot(crc_merged,features = c('nFeature_RNA'),raster = F,pt.size = 0.5)
+p <- p + scale_y_continuous(breaks=seq(0,60000,by=500))
+p$data$ident <- factor(p$data$ident, levels = label_order) # pushing the sort order into the plot
+p <- p + theme(legend.position="none") 
+p <- p + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+p
+
+```
+
+```{r qplot_gene_violin_with_no_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+p <- VlnPlot(crc_merged,features = c('nFeature_RNA'),raster = F,pt.size = 0)
+p <- p + scale_y_continuous(breaks=seq(0,60000,by=500))
+p$data$ident <- factor(p$data$ident, levels = label_order) # pushing the sort order into the plot
+p <- p + theme(legend.position="none") 
+p <- p + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+p
+```
+
+
+```{r qplot_reads_violin_with_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+Idents(crc_merged) <- 'orig.ident'
+p <- VlnPlot(crc_merged,features = c('nCount_RNA'),raster = F,pt.size = 0.5)
+p <- p + scale_y_continuous(breaks=seq(0,100000,by=3000))
+p$data$ident <- factor(p$data$ident, levels = label_order) # pushing the sort order into the plot
+p <- p + theme(legend.position="none") 
+p <- p + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+p
+
+```
+
+
+
+```{r qplot_reads_violin_with_no_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+Idents(crc_merged) <- 'orig.ident'
+p <- VlnPlot(crc_merged,features = c('nCount_RNA'),raster = F,pt.size = 0)
+p <- p + scale_y_continuous(breaks=seq(0,100000,by=3000))
+p$data$ident <- factor(p$data$ident, levels = label_order) # pushing the sort order into the plot
+p <- p + theme(legend.position="none") 
+p <- p + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+p
+
+
+
+```
+
+#Filtering cells 
+- We will filter low quality cells for this analysis 
+- To make things easy we shall remove cells which have genes lower than 200 and above 6000
+- We shall also remove cells with high mitochondial DNA 
+- We shall make a scatter plot to high the cells we are going to keep in green.
+
+
+```{r qplot_genes_vs_mt_featureplot_with_points, fig.width = 20,fig.height= 10, echo=T, warning=F, include=T}
+p <- FeatureScatter(crc_merged,feature1 = "nFeature_RNA",feature2 = "percent.mt",pt.size = 0.5,group.by = 'orig.ident')
+p <- p + theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1))
+p <- p + scale_y_continuous(breaks=seq(0,100,by=5)) 
+p <- p + scale_x_continuous(breaks=seq(0,60000,by=500))
+#Cells to remove
+p <- p + annotate("rect",xmin = -2,xmax=200,ymin=-0.5,ymax=20,fill = "brown4", alpha = 0.5)
+p <- p + annotate("rect",xmin = -2,xmax=9000,ymin=20,ymax=101,fill = "brown4", alpha = 0.5)
+p <- p + annotate("rect",xmin = 6000,xmax=9000,ymin=-0.5,ymax=20,fill = "brown4", alpha = 0.5)
+p <- p + annotate("rect",xmin = 200,xmax=500,ymin=5,ymax=20,fill = "brown4", alpha = 0.5)
+#Cells to keep
+p <- p + annotate("rect",xmin = 500,xmax=6000,ymin=-0.5,ymax=20,fill = "chartreuse4", alpha = 0.5)
+p <- p + annotate("rect",xmin = 200,xmax=500,ymin=-0.5,ymax=5,fill = "chartreuse4", alpha = 0.5)
+p
+```
+
+```{r warning=F, include=T,results='asis'}
+memory.limit(size = 500000)
+crc_merged<- subset(crc_merged, subset = (nFeature_RNA > 200 & percent.mt < 20 ))
+crc_merged<- subset(crc_merged, subset = (nFeature_RNA < 6000))
+
+```
+
+# Performing Log Transform Normalization 
+```{r warning=F, include=T}
+crc_merged <- NormalizeData(crc_merged, normalization.method = "LogNormalize", scale.factor = 10000)
+saveRDS(crc_merged,"sathe_et_al/merged_crc_normalized.rds")
+```
+
+
+
+## Variable gene selection
+
+```{r warning=F, include=T}
+crc_merged <- FindVariableFeatures(crc_merged, selection.method = "vst", nfeatures = 1500)
+top_genes <- head(VariableFeatures(crc_merged), 50)
+```
+
+
+```{r qplot_variable_gene_selection, fig.width = 12,fig.height= 10, echo=T, warning=F, include=T}
+plot1 <- VariableFeaturePlot(crc_merged)
+plot2 <- LabelPoints(plot = plot1, points = top_genes, repel = TRUE)
+plot2 + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),
+              axis.text.y = element_text(size=20))
+```
+
+## Performing Scaling and PCA
+
+```{r warning=F, include=T}
+memory.limit(size = 500000)
+all_genes <- rownames(data)
+crc_merged <- ScaleData(crc_merged, verbose = T, features = all_genes)
+crc_merged <- ScaleData(crc_merged, verbose = T, vars.to.regress = "percent.mt")
+crc_merged<- RunPCA(crc_merged, features =  VariableFeatures(object = crc_merged), npcs = 50, verbose = T)
+saveRDS(crc_merged,"sathe_et_al/merged_crc_normalized_pca.rds")
+```
+
+
+## Elbow plot 
+
+``````{r qplot_elbow,  fig.width = 12,fig.height= 10, echo=T, warning=F, include=T}
+ElbowPlot(crc_merged, ndims = 50, reduction = "pca") + theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5,size=15),axis.text.y = element_text(size=20))
+```
+# Adding tissue information in the metadata
+* Creating a column in the seurat object metadata that will contain the tissue information
+* The tissue information is contained within the name of the samples.
+* Ideally this should have been done when creating the seurat object.
+* But we shall now add the column by manipulating the sample names within the metadata itself.
+* We shall use the str_split function from the stringr library, to perform the string maniputaion required.
+
+```{r warning=F, include=T}
+tissues <- c()
+for (splm in crc_merged@meta.data$orig.ident)
+{
+  sVector <- str_split(splm,"_")[[1]]
+  if (length(sVector) == 2)
+  {
+    tissues <- c(tissues, sVector[2])
+  }
+  else
+  {
+    tissues <- c(tissues, paste0(sVector[2],"_",sVector[3],sep=""))
+  }
+}
+
+crc_merged@meta.data['Tissue'] = tissues
+
+```
+
+
+```{r qplot_initial_umap, warning=F,include=T,echo=T, fig.width=12,fig.height= 16}
+
+invisible(utils::memory.limit(500000))
+
+
+pc = 28
+res = 1
+min_dist = 0.3
+
+
+n = 30
+
+plot_title <- paste("PC = ",pc," res = ",res," min_dist = ",min_dist," n.neighbour = ",n,sep="")
+crc_merged <- FindNeighbors(crc_merged, reduction = "pca", dims = 1:pc)
+crc_merged <- FindClusters(crc_merged, resolution = res)
+
+
+crc_merged <- RunUMAP(crc_merged, reduction = "pca", dims = 1:pc,min.dist = min_dist,n.neighbors = n)
+Idents(crc_merged) <- "seurat_clusters"
+p1<- DimPlot(crc_merged, reduction = "umap", label = TRUE,pt.size = 0.5,label.size = 5,raster=FALSE) + ggtitle(plot_title)
+p2 <- FeaturePlot(crc_merged,features = c("PTPRC"),pt.size = 1,raster=FALSE) + scale_color_viridis(option = "D") + ggtitle("Immune Cells; PTPRC")
+p3 <- FeaturePlot(crc_merged,features = c("KRT18"),pt.size = 1,raster=FALSE) + scale_color_viridis(option = "D") + ggtitle("Epithelial; KRT18")
+p4 <- FeaturePlot(crc_merged,features = c("PECAM1"),pt.size = 1,raster=FALSE) + scale_color_viridis(option = "D") + ggtitle("Endothelial; PECAM1")
+p5 <- FeaturePlot(crc_merged,features = c("ACTA2"),pt.size = 1,raster=FALSE) + scale_color_viridis(option = "D") + ggtitle("Fibroblast; ACTA2")
+Idents(crc_merged) <- 'Tissue'
+p6<- DimPlot(crc_merged, reduction = "umap", label = F,pt.size = 0.5,label.size = 8,raster=FALSE) + ggtitle("Tissue Type")
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol =2 )
+
+
+```
+#Saving satisfied 'umapped' data
+```{r warning=F, include=T}
+saveRDS(crc_merged,"sathe_et_al/merged_crc_normalized_pca_umapped.rds")
+```
+# Personalized umap look and color
+* we will create a UMAP that can be easily customized.
+* Each option in the function will be explained clearly.
+* We will create a dataframe that will contain the UMAP information and the metadata
+
+**Note: The options in this function is not limited and further modification is possible.**
+**Please follow the ggplot documentation or google search ;)**
+      
+
+
+```{r, warning=F,include=T,echo=T}
+#Creating the dataframe that will be pass into plotting function
+umap_emb <- as.data.frame(crc_merged@reductions$umap@cell.embeddings)
+umap_emb['Tissue'] = crc_merged@meta.data$Tissue
+umap_emb['Cluster'] = crc_merged@meta.data$seurat_clusters
+
+
+# Creating a function that will a customize umap for color, point size
+customUmap <- function(df,column='Cluster',pt.size=2,x.angle=90,x.hjust=0.5,x.vjust=0.5,x.tick.size=30,y.angle=0,
+                       y.hjust=0.5,y.vjust=0.5,y.tick.size=30,x.color='black',y.color='black',
+                       x.ranges=seq(-20,20,by=5),y.ranges=seq(-20,20,by=5),lab.size=20,custom_col=c(),
+                       lab.col = 'black',clust.label.size = 5,lg.ncol=1, lg.sym.size=6, lg.text.size=15,label.clust=T,
+                       lg.pos="right",border=F,alpha=0.8,pt.border.size = 0.1)
+{
+     # Function arguments:
+     # df: The data frame that contains the umap information and metadata
+     # column: The column name in the dataframe that will be used the plot colors  on the umap
+     # pt.size: Size of the points in the graph; default size = 2
+     # x.angle: The angle of the X-axis label; default angle = 90
+     # y.angle: The angle of the Y-axis label; default angle =0
+     # x.hjust: Horizontal spacing of the X-axis label; default = 0.5
+     # y.hjust: Horizontal spacing of the Y-axis label; default = 0.5
+     # y.vjust: Vertical spacing of Y-axis label; default = 0.5
+     # x.tick.size: X-axis label size; default = 30
+     # y.tick.size: Y-axis label size; default = 30
+     # x.color and y.color: Add color to X and Y axis ticks; default = black
+     # x.ranges and y.ranges: Define the range and interval of X and Y axis; default seq(-20,20,by=5)
+     # lab.size: Size of the X and Y axis title; default = 20
+     # Custom_col: A vector of colors that should be equal to the number of clusters; default = None
+     # lab.col: Color of the X and Y axis title; default = black
+     # clust.label.size: Size of the cluster labels; default = 5
+     # lg.ncol: Number of columns for the legend; default = 1
+     # lg.sym.size: Size of the symbol for the legend; default = 6
+     # lg.text.size: Size of the legends; Default = 15
+     # label.clust: label Cluster; Default = True
+     # lg.pos: Position of the legend; default = "right"; can be "bottom", "left", "top"
+     # border: Add border around the points; default = F
+     # pt.border.size: border size of the points; default = 0.1
+     # alpha: Change the opacity of the points; default = 0.8
+  
+     #Basic plot with point size changes
+     
+     gplt <- function( variable, pt.size, alpha) {
+           ggplot(umap_emb, aes(x = UMAP_1, y = UMAP_2 , col = !! sym(variable))) +
+           geom_point(size=pt.size,alpha=alpha,pch=20)
+     }
+     
+       gplt_border <- function( variable, pt.size, alpha,pt.border.size) {
+           ggplot(umap_emb, aes(x = UMAP_1, y = UMAP_2 )) +
+           geom_point(aes(fill = !! sym(variable)),size=pt.size,alpha=alpha,pch=21,stroke = pt.border.size)
+         
+     }
+       
+     if (border == F)
+     {
+        p <- gplt(column,pt.size,alpha)
+     }
+    else
+    {
+      p <- gplt_border(column,pt.size,alpha,pt.border.size)
+    }
+     # Change x and y axis values
+     # Change ticks and label colors 
+     # change plot background
+     p <- p + theme(axis.text.x = element_text(angle = x.angle, hjust = x.hjust, vjust = x.vjust,size = x.tick.size, colour = x.color),
+                 axis.text.y = element_text(angle = y.angle, hjust = y.hjust, vjust = y.vjust,size=y.tick.size,colour = y.color),
+                 axis.title = element_text(size = lab.size),
+                 panel.background = element_blank(), axis.line = element_line(colour = "black"),
+                 legend.position=lg.pos, legend.title.align=0.5 )
+    p <- p + scale_y_continuous(breaks=x.ranges) 
+    p <- p + scale_x_continuous(breaks=y.ranges)
+    
+    #Adding colors for each cluster
+    if (length(custom_col) == 0)
+    {
+      if (border == T)
+       {
+         p <- p + scale_fill_manual(values = distinctColorPalette(length(unique(umap_emb$Cluster))))
+       }
+       else
+       {
+         p <- p + scale_color_manual(values = distinctColorPalette(length(unique(umap_emb$Cluster))))
+       }
+    } 
+    else
+    {
+       if (border == T)
+       {
+         p <- p + scale_fill_manual(values = custom_col)
+       }
+       else
+       {
+         p <- p + scale_color_manual(values = custom_col)
+       } 
+      
+    }
+    ### Add label
+    if (label.clust == T)
+    {
+        data <- umap_emb %>% group_by(Cluster) %>% select(UMAP_1,UMAP_2)%>% summarize_all(median)
+        if (lab.col == 'black')
+        {
+           p <- p + geom_text(data = data,aes(label = Cluster),colour='black',size = clust.label.size)
+        }
+        else
+       {
+          p <- p + geom_label(data = data,aes(label = Cluster),size = clust.label.size)
+       }
+    }
+   
+    ### Working with legends 
+    p <- p + guides(color = guide_legend(ncol = lg.ncol, override.aes = list(size=lg.sym.size)))
+    p <- p + theme(legend.key.size = unit(1, 'cm'), #change legend key size
+        legend.key.height = unit(1, 'cm'), #change legend key height
+        legend.key.width = unit(1, 'cm'), #change legend key width
+        legend.title = element_blank(), #change legend title font size
+        legend.text = element_text(size=lg.text.size)) #change legend text font size
+
+return(p)
+}
+
+```
+
+# Default call to make the plot
+* By default the function will choose to plot cluster numbering.
+* The color for each cluster will be randomly generated using a package called randomcoloR.
+* Therefore, every time we run the cluster a new set of color sets will be chosen.
+
+```{r qplot_modified_umap_1, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with random color set 1
+customUmap(umap_emb)
+```
+```{r qplot_modified_umap_2, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with random color set 2
+customUmap(umap_emb)
+```
+We can fix the cluster color by either choosing our own color for each cluster
+or, by saving the randomly generated color into a vector and push vector into the function.
+
+```{r qplot_modified_umap_3, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with fix color method 1.
+colors <- c("#E2B93D","#DA3FB7","#81C9E6","#DCE3B5","#E5B3E2","#C9E7E0",
+            "#DD74B6","#BEAD9B","#A7A763","#E1E07E","#B3EBB3","#609DD9",
+            "#6AE552","#D15576","#6B72DF","#78735B","#CC6DE8","#ECD4C3",
+            "#E6A271","#CD95E8","#9689A1","#7D3BE4","#695A91","#70B671",
+            "#ADE87A","#61E7A6","#ABB5EC","#D5E73E","#E2D1E4","#67B8B3",
+            "#71E8D9","#E49EA7","#DE6644","#D934E9")
+
+customUmap(umap_emb,custom_col = colors)
+```
+
+```{r qplot_modified_umap_4, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with fix color method 2.
+colors <-distinctColorPalette(length(unique(umap_emb$Cluster)))
+
+customUmap(umap_emb,custom_col = colors)
+```
+
+
+Another thing that we can notice is that cluster legends are pushing out of the graph.
+This can be solved by placing two rows for the legends using the lg.ncol option.
+
+```{r qplot_modified_umap_5, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with fix color method 2.
+customUmap(umap_emb,custom_col = colors,lg.ncol = 2)
+```
+We can also change the location of the legend using the lg.pos option.
+The legend is placed on the right by default. but it can also be placed on left, top and bottom 
+
+```{r qplot_modified_umap_6, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with fix color method 2.
+customUmap(umap_emb,custom_col = colors,lg.ncol = 16,lg.pos = 'bottom')
+```
+
+Next, we will choose a different column from the dataframe to color the plot.
+In this case, we shall use the tissue type information to project the distribution of tumor and normal samples.
+
+```{r qplot_modified_umap_7, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+customUmap(umap_emb,column = "Tissue",lab.col = 'black',clust.label.size = 8, lg.ncol = 1, custom_col = c("#1ECBE1","#E11ECB","#CBE11E"),label.clust = F )
+
+```
+
+Another beautification that we can add is to place borders around the points to make the plot look more 3D
+Borders can be added by using the border=T option. The size of the border can be controlled by using the pt.broder.size option
+
+```{r qplot_modified_umap_8, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+customUmap(umap_emb, alpha=0.8,column = "Tissue",lab.col = 'black',clust.label.size = 8, lg.ncol = 1, custom_col = c("#1ECBE1","#E11ECB","#CBE11E"),label.clust = F, border = T,pt.border.size = 0.1)
+
+```
+
+
+```{r qplot_modified_umap_9, warning=F,include=T,echo=T, fig.width=12,fig.height= 12}
+# Making UMAP with fix color and adding borders to points in the plot.
+colors <- c("#E2B93D","#DA3FB7","#81C9E6","#DCE3B5","#E5B3E2","#C9E7E0",
+            "#DD74B6","#BEAD9B","#A7A763","#E1E07E","#B3EBB3","#609DD9",
+            "#6AE552","#D15576","#6B72DF","#78735B","#CC6DE8","#ECD4C3",
+            "#E6A271","#CD95E8","#9689A1","#7D3BE4","#695A91","#70B671",
+            "#ADE87A","#61E7A6","#ABB5EC","#D5E73E","#E2D1E4","#67B8B3",
+            "#71E8D9","#E49EA7","#DE6644","#D934E9")
+
+customUmap(umap_emb,custom_col = colors,border = T,pt.border.size = 0.1)
+```
+
+
+## Plotting Gene expression using kernal density 
+
+FeaturePlot function from seurat is commonly used to plot the gene expression values of each cells and project it into a UMAP plot.
+However, in point plots like the UMAP, points tends to get overlay on top of another.
+This may undermind or over-estimate the real expression pattern in a cluster.
+
+Here, we will explore the a package called Nebulosa which uses kernal density to show the distribution of expression in a UMAP plot.
+Details regarding the paper can be found below.
+
+**Jose Alquicira-Hernandez , Joseph E Powell, Nebulosa recovers single-cell gene expression signals by kernel density estimation, Bioinformatics, Volume 37, Issue 16, August 2021, Pages 2485–2487, https://doi.org/10.1093/bioinformatics/btab003**
+
+The instructions for the package can be found here.
+https://www.bioconductor.org/packages/release/bioc/vignettes/Nebulosa/inst/doc/nebulosa_seurat.html
+
+
+```{r featurePlot_1, warning=F,include=T,echo=T, fig.width=12,fig.height= 6}
+p1 <- FeaturePlot(crc_merged, features = c("PTPRC"),pt.size = 1) + ggtitle("PTPRC (Seurat)") + scale_color_viridis(option = "D")
+
+p2<-plot_density(crc_merged, c("PTPRC"),size = 1) + ggtitle("PTPRC (Nebulosa)")
+
+grid.arrange(p1,p2,ncol =2)
+```
+Another cool aspect of Nebulosa is that you can view clusters which have co-expression of multiple genes.
+In the example below, we will try to plot Endothelial cells (PECAM1+ VWF+) which are PLVAP+.
+
+```{r featurePlot_2, warning=F,include=T,echo=T, fig.width=16,fig.height= 12}
+plot_density(crc_merged, c("PECAM1","VWF","PLVAP"),size = 1,joint = T) + ggtitle("PECAM1+ VWF+ PLVAP+")
+
+```
+
+
